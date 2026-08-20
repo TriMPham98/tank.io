@@ -6,16 +6,50 @@ export type Camera = {
   x: number;
   y: number;
   scale: number;
+  kickX: number;
+  kickY: number;
+  lvx: number;
+  lvy: number;
+  hitStamp: number;
 };
 
 export function createCamera(tank: Tank): Camera {
-  return { x: tank.x, y: tank.y, scale: 1 };
+  return {
+    x: tank.x,
+    y: tank.y,
+    scale: 1,
+    kickX: 0,
+    kickY: 0,
+    lvx: tank.vx,
+    lvy: tank.vy,
+    hitStamp: tank.lastHitAt,
+  };
 }
 
 export function updateCamera(cam: Camera, tank: Tank, canvas: HTMLCanvasElement, dt: number): void {
   const k = 1 - Math.exp(-CAMERA_LERP * dt);
-  cam.x += (tank.x - cam.x) * k;
-  cam.y += (tank.y - cam.y) * k;
+  cam.kickX += (tank.vx - cam.lvx) * 0.48;
+  cam.kickY += (tank.vy - cam.lvy) * 0.48;
+  if (tank.lastHitAt > cam.hitStamp) {
+    cam.hitStamp = tank.lastHitAt;
+    cam.kickX += (tank.vx - cam.lvx) * 2.4;
+    cam.kickY += (tank.vy - cam.lvy) * 2.4;
+    const away = tank.angle + Math.PI;
+    cam.kickX += Math.cos(away) * 22;
+    cam.kickY += Math.sin(away) * 22;
+  }
+  const decay = Math.exp(-11 * dt);
+  cam.kickX *= decay;
+  cam.kickY *= decay;
+  const mag = Math.hypot(cam.kickX, cam.kickY);
+  if (mag > 90) {
+    cam.kickX *= 90 / mag;
+    cam.kickY *= 90 / mag;
+  }
+  cam.lvx = tank.vx;
+  cam.lvy = tank.vy;
+  cam.x += (tank.x + cam.kickX - cam.x) * k;
+  cam.y += (tank.y + cam.kickY - cam.y) * k;
   const fov = TANK_DEFS[tank.classId].fov;
   const target = canvas.width / (VIEW_WIDTH * fov);
   cam.scale += (target - cam.scale) * k;
@@ -43,6 +77,16 @@ export function screenToWorld(
     x: (sx - canvas.width / 2) / cam.scale + cam.x,
     y: (sy - canvas.height / 2) / cam.scale + cam.y,
   };
+}
+
+export function worldViewBounds(
+  cam: Camera,
+  canvasWidth: number,
+  canvasHeight: number,
+): { x: number; y: number; w: number; h: number } {
+  const hw = canvasWidth / (2 * Math.max(0.001, cam.scale));
+  const hh = canvasHeight / (2 * Math.max(0.001, cam.scale));
+  return { x: cam.x - hw, y: cam.y - hh, w: hw * 2, h: hh * 2 };
 }
 
 export function applyCamera(ctx: CanvasRenderingContext2D, cam: Camera, canvas: HTMLCanvasElement): void {

@@ -11,12 +11,17 @@ export type CircleRef = {
 export class SpatialHash {
   readonly cell: number;
   buckets = new Map<number, CircleRef[]>();
+  private pool: CircleRef[][] = [];
 
   constructor(cell = HASH_CELL) {
     this.cell = cell;
   }
 
   clear(): void {
+    for (const bin of this.buckets.values()) {
+      bin.length = 0;
+      this.pool.push(bin);
+    }
     this.buckets.clear();
   }
 
@@ -34,7 +39,7 @@ export class SpatialHash {
         const k = this.key(cx, cy);
         let bin = this.buckets.get(k);
         if (!bin) {
-          bin = [];
+          bin = this.pool.pop() ?? [];
           this.buckets.set(k, bin);
         }
         bin.push(ref);

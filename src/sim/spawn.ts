@@ -1,4 +1,6 @@
-import { ARENA, NEST_SIZE, SHAPE_TARGETS } from "../config/constants.ts";
+import { ARENA, NEST_SIZE, SHAPE_TARGETS, TANK_FRICTION } from "../config/constants.ts";
+import { clampArena } from "./physics.ts";
+import { circlesHit, separateCircles } from "./collision.ts";
 import { SHAPE_DEFS, type ShapeKind } from "../config/shapeDefs.ts";
 import type { Shape, World } from "./types.ts";
 import { allocId } from "./types.ts";
@@ -40,6 +42,8 @@ export function spawnShape(world: World, kind: ShapeKind): Shape {
     sides: def.sides,
     x: pos.x,
     y: pos.y,
+    vx: 0,
+    vy: 0,
     angle: Math.random() * Math.PI * 2,
     spin: def.spin * (Math.random() < 0.5 ? -1 : 1),
     px: pos.x,
@@ -50,6 +54,7 @@ export function spawnShape(world: World, kind: ShapeKind): Shape {
     maxHp: def.hp,
     score: def.score,
     color: def.color,
+    lastHitAt: -999,
   };
   world.shapes.set(shape.id, shape);
   return shape;
@@ -69,8 +74,39 @@ export function maintainShapes(world: World): void {
   for (const kind of missing) spawnShape(world, kind);
 }
 
+export function unstackShapes(world: World): void {
+  const hash = world.hash;
+  hash.clear();
+  for (const s of world.shapes.values()) {
+    hash.insert({ id: s.id, x: s.x, y: s.y, r: s.radius, tag: "shape" });
+  }
+  const seen = new Set<string>();
+  for (const s of world.shapes.values()) {
+    for (const ref of hash.query(s.x, s.y, s.radius)) {
+      if (ref.id === s.id) continue;
+      const a = s.id < ref.id ? s.id : ref.id;
+      const b = s.id < ref.id ? ref.id : s.id;
+      const key = a + ":" + b;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const o = world.shapes.get(ref.id);
+      if (!o) continue;
+      if (!circlesHit(s.x, s.y, s.radius, o.x, o.y, o.radius)) continue;
+      separateCircles(s, o, 0.28);
+    }
+  }
+}
+
 export function spinShapes(world: World, dt: number): void {
+  const damp = Math.exp(-TANK_FRICTION * 0.55 * dt);
   for (const s of world.shapes.values()) {
     s.angle += s.spin * dt;
+    s.x += s.vx * dt;
+    s.y += s.vy * dt;
+    s.vx *= damp;
+    s.vy *= damp;
+    const c = clampArena(s.x, s.y, s.radius);
+    s.x = c.x;
+    s.y = c.y;
   }
 }

@@ -8,7 +8,7 @@ import { createCamera, updateCamera } from "./render/camera.ts";
 import { drawWorld } from "./render/draw.ts";
 import { drawHud } from "./render/hud.ts";
 import { drawMinimap } from "./render/minimap.ts";
-import { resumeAudio, sfxDeath, sfxLevel, sfxShoot } from "./render/sfx.ts";
+import { playSfxCues, resumeAudio, sfxCues, type SfxSnap } from "./render/sfx.ts";
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
 const gfx = canvas.getContext("2d");
@@ -30,10 +30,12 @@ const input = createInput(canvas);
 
 let acc = 0;
 let last = performance.now();
-let lastScore = 0;
-let lastLevel = 1;
-let lastBullets = 0;
-let wasAlive = true;
+let sfxPrev: SfxSnap = {
+  lastHitAt: player0.lastHitAt,
+  level: player0.level,
+  alive: player0.alive,
+  bullets: 0,
+};
 
 canvas.addEventListener("mousedown", () => resumeAudio());
 
@@ -55,21 +57,21 @@ function frame(now: number): void {
 
   const p = world.tanks.get(world.playerId);
   if (p) {
-    if (world.bullets.size > lastBullets) sfxShoot();
-    if (p.level > lastLevel) sfxLevel();
-    if (!p.alive && wasAlive) sfxDeath();
-    lastLevel = p.level;
-    lastScore = p.score;
-    wasAlive = p.alive;
+    const next: SfxSnap = {
+      lastHitAt: p.lastHitAt,
+      level: p.level,
+      alive: p.alive,
+      bullets: world.bullets.size,
+    };
+    playSfxCues(sfxCues(sfxPrev, next));
+    sfxPrev = next;
   }
-  lastBullets = world.bullets.size;
 
   const alpha = acc / DT;
   drawWorld(ctx, world, cam, canvas, alpha);
   drawHud(ctx, world, canvas);
-  drawMinimap(ctx, world, canvas);
+  drawMinimap(ctx, world, canvas, cam);
   requestAnimationFrame(frame);
 }
 
 requestAnimationFrame(frame);
-void lastScore;

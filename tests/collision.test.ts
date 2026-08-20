@@ -5,6 +5,8 @@ import {
   overlapAmount,
   separateCircles,
 } from "../src/sim/collision.ts";
+import { createWorld } from "../src/sim/world.ts";
+import { spawnShape, unstackShapes } from "../src/sim/spawn.ts";
 
 describe("circles", () => {
   it("detects overlap", () => {
@@ -33,5 +35,26 @@ describe("spatial hash", () => {
     const near = h.query(0, 0, 10);
     expect(near.some((r) => r.id === 1)).toBe(true);
     expect(near.some((r) => r.id === 2)).toBe(false);
+  });
+});
+
+describe("shape unstack", () => {
+  it("pushes overlapping squares apart", () => {
+    const world = createWorld({ bots: 0, seedShapes: false });
+    const a = spawnShape(world, "square");
+    const b = spawnShape(world, "square");
+    a.x = 500;
+    a.y = 500;
+    b.x = 508;
+    b.y = 500;
+    unstackShapes(world);
+    expect(Math.hypot(b.x - a.x, b.y - a.y)).toBeGreaterThanOrEqual(a.radius + b.radius - 0.2);
+    a.x = 500;
+    a.y = 500;
+    b.x = 508;
+    b.y = 500;
+    unstackShapes(world);
+    expect(Math.hypot(b.x - a.x, b.y - a.y)).toBeGreaterThanOrEqual(a.radius + b.radius - 0.2);
+    expect(world.hash.buckets.size).toBeGreaterThan(0);
   });
 });

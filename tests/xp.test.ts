@@ -6,7 +6,7 @@ import {
   totalSkillPointsAtLevel,
 } from "../src/config/levels.ts";
 import { createWorld } from "../src/sim/world.ts";
-import { addScore, buyStat, derivedReload } from "../src/sim/xp.ts";
+import { addScore, buyStat, derivedReload, stepFloats } from "../src/sim/xp.ts";
 
 describe("levels", () => {
   it("maps score to level", () => {
@@ -32,6 +32,12 @@ describe("score and stats", () => {
     const tank = world.tanks.get(world.playerId)!;
     addScore(world, tank, 10);
     expect(tank.score).toBe(10);
+    expect(world.floats.some((f) => f.text === "+10")).toBe(true);
+    addScore(world, tank, SCORE_FOR_LEVEL[2]!);
+    expect(world.floats.some((f) => f.text.startsWith("Level"))).toBe(true);
+    world.time += 2;
+    stepFloats(world, 0.016);
+    expect(world.floats.length).toBe(0);
   });
 
   it("reload with 7 points is faster than 0", () => {

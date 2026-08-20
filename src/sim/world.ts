@@ -1,8 +1,9 @@
 import { ARENA, BOT_COUNT, tankRadius } from "../config/constants.ts";
 import { TANK_DEFS, type TankClassId } from "../config/tankDefs.ts";
+import { SpatialHash } from "./collision.ts";
 import { allocId, type Stats, type Tank, type World } from "./types.ts";
 import { seedShapes } from "./spawn.ts";
-import { derivedMaxHp } from "./xp.ts";
+import { derivedMaxHp, derivedReload } from "./xp.ts";
 
 const BOT_NAMES = [
   "Hex",
@@ -52,15 +53,21 @@ export function makeTank(
     skillPoints: 0,
     stats,
     classId,
-    barrelT: def.barrels.map((b) => b.delay),
+    barrelT: def.barrels.map((b) => b.delay * derivedReload(stats, b.reload)),
+    barrelKick: def.barrels.map(() => 0),
+    barrelAim: def.barrels.map((b) => b.offsetAngle),
     alive: true,
     isBot: opts.isBot,
     lastHitAt: -999,
     lastHitBy: null,
+    kills: 0,
     regenT: 0,
     autoFire: false,
     autoSpin: false,
     respawnT: 0,
+    aimX: opts.x,
+    aimY: opts.y,
+    sendDrones: false,
   };
   world.tanks.set(tank.id, tank);
   return tank;
@@ -81,7 +88,10 @@ export function createWorld(opts: { bots?: number; seedShapes?: boolean } = {}):
     tanks: new Map(),
     bullets: new Map(),
     shapes: new Map(),
+    floats: [],
+    bursts: [],
     playerId: 0,
+    hash: new SpatialHash(),
     death: null,
   };
   const p = randomArenaPos();

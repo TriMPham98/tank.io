@@ -23,6 +23,7 @@ export const BULLET_PEN0 = 2;
 export const BULLET_LIFE = 2.2;
 export const BULLET_RADIUS = 8;
 export const MAX_BULLETS = 400;
+export const MAX_DRONES = 8;
 
 export const KNOCKBACK = 0.42;
 export const VIEW_WIDTH = 920;

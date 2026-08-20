@@ -4,9 +4,9 @@ import type { PlayerInput, World } from "./types.ts";
 import { EMPTY_INPUT } from "./types.ts";
 import { emptyStats, randomArenaPos } from "./world.ts";
 import { applyMovement } from "./physics.ts";
-import { fireBarrels, regenTanks, resolveCombat, stepBullets } from "./combat.ts";
-import { maintainShapes, spinShapes } from "./spawn.ts";
-import { buyStat, pickClass, derivedMaxHp } from "./xp.ts";
+import { fireBarrels, regenTanks, resolveCombat, stepBullets, stepBursts } from "./combat.ts";
+import { maintainShapes, spinShapes, unstackShapes } from "./spawn.ts";
+import { buyStat, pickClass, derivedMaxHp, derivedReload, stepFloats } from "./xp.ts";
 import type { Tank } from "./types.ts";
 
 function resetTank(tank: Tank): void {
@@ -22,7 +22,9 @@ function resetTank(tank: Tank): void {
   tank.skillPoints = 0;
   tank.stats = emptyStats();
   tank.classId = "basic";
-  tank.barrelT = TANK_DEFS.basic.barrels.map((b) => b.delay);
+  tank.barrelT = TANK_DEFS.basic.barrels.map((b) => b.delay * derivedReload(tank.stats, b.reload));
+  tank.barrelKick = TANK_DEFS.basic.barrels.map(() => 0);
+  tank.barrelAim = TANK_DEFS.basic.barrels.map((b) => tank.angle + b.offsetAngle);
   tank.radius = tankRadius(1);
   tank.maxHp = derivedMaxHp(1, tank.stats);
   tank.hp = tank.maxHp;
@@ -30,6 +32,7 @@ function resetTank(tank: Tank): void {
   tank.respawnT = 0;
   tank.lastHitBy = null;
   tank.lastHitAt = -999;
+  tank.kills = 0;
 }
 
 export function tick(world: World, inputs: Map<number, PlayerInput>, dt: number): void {
@@ -66,13 +69,19 @@ export function tick(world: World, inputs: Map<number, PlayerInput>, dt: number)
     if (input.up) dy -= 1;
     applyMovement(tank, dt, dx, dy);
 
+    tank.aimX = input.aimX;
+    tank.aimY = input.aimY;
     const wantFire = tank.alive && (input.fire || tank.autoFire);
+    tank.sendDrones = wantFire;
     fireBarrels(world, tank, dt, wantFire);
   }
 
   stepBullets(world, dt);
   spinShapes(world, dt);
+  unstackShapes(world);
   resolveCombat(world);
   regenTanks(world, dt);
   maintainShapes(world);
+  stepFloats(world, dt);
+  stepBursts(world, dt);
 }

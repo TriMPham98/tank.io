@@ -40,3 +40,30 @@ export function sfxDeath(): void {
 export function resumeAudio(): void {
   void ac()?.resume();
 }
+
+export type SfxCue = "shoot" | "hit" | "level" | "death";
+
+export type SfxSnap = {
+  lastHitAt: number;
+  level: number;
+  alive: boolean;
+  bullets: number;
+};
+
+export function sfxCues(prev: SfxSnap, next: SfxSnap): SfxCue[] {
+  const out: SfxCue[] = [];
+  if (next.bullets > prev.bullets) out.push("shoot");
+  if (next.lastHitAt > prev.lastHitAt && next.alive) out.push("hit");
+  if (next.level > prev.level) out.push("level");
+  if (!next.alive && prev.alive) out.push("death");
+  return out;
+}
+
+export function playSfxCues(cues: SfxCue[]): void {
+  for (const c of cues) {
+    if (c === "shoot") sfxShoot();
+    else if (c === "hit") sfxHit();
+    else if (c === "level") sfxLevel();
+    else sfxDeath();
+  }
+}

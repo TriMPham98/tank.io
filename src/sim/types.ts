@@ -1,5 +1,6 @@
 import type { TankClassId } from "../config/tankDefs.ts";
 import type { ShapeKind } from "../config/shapeDefs.ts";
+import type { SpatialHash } from "./collision.ts";
 
 export type EntityId = number;
 
@@ -26,14 +27,20 @@ export type Tank = {
   stats: Stats;
   classId: TankClassId;
   barrelT: number[];
+  barrelKick: number[];
+  barrelAim: number[];
   alive: boolean;
   isBot: boolean;
   lastHitAt: number;
   lastHitBy: EntityId | null;
+  kills: number;
   regenT: number;
   autoFire: boolean;
   autoSpin: boolean;
   respawnT: number;
+  aimX: number;
+  aimY: number;
+  sendDrones: boolean;
 };
 
 export type Bullet = {
@@ -51,6 +58,7 @@ export type Bullet = {
   hp: number;
   damage: number;
   life: number;
+  drone: boolean;
 };
 
 export type Shape = {
@@ -60,6 +68,8 @@ export type Shape = {
   sides: 4 | 3 | 5;
   x: number;
   y: number;
+  vx: number;
+  vy: number;
   angle: number;
   spin: number;
   px: number;
@@ -70,6 +80,7 @@ export type Shape = {
   maxHp: number;
   score: number;
   color: string;
+  lastHitAt: number;
 };
 
 export type PlayerInput = {
@@ -102,6 +113,27 @@ export const EMPTY_INPUT: PlayerInput = {
   respawn: false,
 };
 
+export type FloatText = {
+  x: number;
+  y: number;
+  vy: number;
+  text: string;
+  born: number;
+  life: number;
+  color: string;
+};
+
+export type Burst = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  r: number;
+  born: number;
+  life: number;
+  color: string;
+};
+
 export type World = {
   nextId: number;
   tick: number;
@@ -109,8 +141,18 @@ export type World = {
   tanks: Map<EntityId, Tank>;
   bullets: Map<EntityId, Bullet>;
   shapes: Map<EntityId, Shape>;
+  floats: FloatText[];
+  bursts: Burst[];
   playerId: EntityId;
-  death: { killerName: string } | null;
+  hash: SpatialHash;
+  death: {
+    killerName: string;
+    killerClass: string;
+    score: number;
+    level: number;
+    className: string;
+    kills: number;
+  } | null;
 };
 
 export function allocId(world: World): EntityId {

@@ -69,6 +69,7 @@ export function createInput(canvas: HTMLCanvasElement): InputSampler {
       if (keys.has("KeyU") && ups[1]) classPick = ups[1];
       if (keys.has("KeyI") && ups[2]) classPick = ups[2];
       if (keys.has("KeyO") && ups[3]) classPick = ups[3];
+      if (keys.has("KeyP") && ups[4]) classPick = ups[4];
 
       const input: PlayerInput = {
         ...EMPTY_INPUT,

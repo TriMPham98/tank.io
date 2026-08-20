@@ -14,8 +14,19 @@ const statRects: Rect[] = [];
 const classRects: { rect: Rect; classId: TankClassId }[] = [];
 let respawnRect: Rect | null = null;
 
+export function canvasCssSize(canvas: HTMLCanvasElement): { w: number; h: number; dpr: number } {
+  const w = canvas.clientWidth || window.innerWidth || canvas.width;
+  const h = canvas.clientHeight || window.innerHeight || canvas.height;
+  const dpr = canvas.width / Math.max(1, w);
+  return { w, h, dpr };
+}
+
 function inRect(r: Rect, x: number, y: number): boolean {
   return x >= r.x && y >= r.y && x <= r.x + r.w && y <= r.y + r.h;
+}
+
+function toCanvasRect(r: Rect, dpr: number): Rect {
+  return { x: r.x * dpr, y: r.y * dpr, w: r.w * dpr, h: r.h * dpr };
 }
 
 function bar(
@@ -35,10 +46,22 @@ function bar(
   ctx.strokeStyle = "rgba(0,0,0,0.35)";
   ctx.strokeRect(x, y, w, h);
   ctx.fillStyle = "#fff";
-  ctx.font = "12px sans-serif";
+  ctx.font = "16px sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(label, x + w / 2, y + h / 2);
+}
+
+export function scoreBarLabel(player: Tank): string {
+  const k = player.kills;
+  return `Score ${player.score}  ·  ${k} kill${k === 1 ? "" : "s"}`;
+}
+
+export function modeHints(player: Tank): string {
+  const bits: string[] = [];
+  if (player.autoFire) bits.push("AUTOFIRE");
+  if (player.autoSpin) bits.push("AUTOSPIN");
+  return bits.join("  ·  ");
 }
 
 export function drawHud(
@@ -52,98 +75,143 @@ export function drawHud(
   classRects.length = 0;
   respawnRect = null;
 
-  const w = canvas.width;
-  const h = canvas.height;
+  const { w, h, dpr } = canvasCssSize(canvas);
+  ctx.save();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
   const nextLevel = Math.min(MAX_LEVEL, player.level + 1);
   const lo = SCORE_FOR_LEVEL[player.level] ?? 0;
   const hi = SCORE_FOR_LEVEL[nextLevel] ?? lo + 1;
   const levelFrac = player.level >= MAX_LEVEL ? 1 : (player.score - lo) / Math.max(1, hi - lo);
 
-  const barW = Math.min(420, w * 0.45);
-  bar(ctx, w / 2 - barW / 2, h - 52, barW, 16, Math.min(1, player.score / Math.max(1, hi)), "#e8d44d", `Score ${player.score}`);
-  bar(ctx, w / 2 - barW / 2, h - 32, barW, 16, levelFrac, "#6ecbff", `Level ${player.level}`);
+  const barW = Math.min(480, w * 0.42);
+  bar(
+    ctx,
+    w / 2 - barW / 2,
+    h - 64,
+    barW,
+    22,
+    Math.min(1, player.score / Math.max(1, hi)),
+    "#e8d44d",
+    scoreBarLabel(player),
+  );
+  bar(ctx, w / 2 - barW / 2, h - 38, barW, 22, levelFrac, "#6ecbff", `Level ${player.level}`);
 
-  const sx = 12;
-  let sy = h - 24 - 8 * 22;
+  const sx = 16;
+  const rowH = 26;
+  let sy = h - 28 - 8 * rowH;
   for (let i = 0; i < 8; i++) {
     const pts = player.stats[i]!;
-    const rect = { x: sx, y: sy, w: 210, h: 18 };
-    statRects.push(rect);
+    const rect = { x: sx, y: sy, w: 280, h: 22 };
+    statRects.push(toCanvasRect(rect, dpr));
     ctx.fillStyle = player.skillPoints > 0 && pts < MAX_STAT ? "rgba(0,0,0,0.55)" : "rgba(0,0,0,0.35)";
     ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
     ctx.fillStyle = "#7fd99a";
     ctx.fillRect(rect.x, rect.y, (rect.w * pts) / MAX_STAT, rect.h);
     ctx.fillStyle = "#fff";
-    ctx.font = "11px sans-serif";
+    ctx.font = "15px sans-serif";
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    ctx.fillText(`${i + 1}  ${STAT_LABELS[i]}  ${pts}/${MAX_STAT}`, rect.x + 6, rect.y + 9);
-    sy += 22;
+    ctx.fillText(`${i + 1}  ${STAT_LABELS[i]}  ${pts}/${MAX_STAT}`, rect.x + 8, rect.y + 11);
+    sy += rowH;
   }
   if (player.skillPoints > 0) {
     ctx.fillStyle = "#fff";
-    ctx.font = "13px sans-serif";
+    ctx.font = "18px sans-serif";
     ctx.textAlign = "left";
-    ctx.fillText(`Points: ${player.skillPoints}`, sx, sy - 8 * 22 - 10);
+    ctx.fillText(`Points: ${player.skillPoints}`, sx, sy - 8 * rowH - 12);
   }
+
+  const boardW = 300;
+  const row = 26;
+  const boardH = 44 + row * 10;
+  const bx = w - boardW - 16;
+  const by = 16;
 
   const upgrades = TANK_DEFS[player.classId].upgradesTo.filter(
     (id) => player.level >= TANK_DEFS[id].unlockLevel,
   );
-  let cy = h / 2 - upgrades.length * 28;
-  const keys = ["Y", "U", "I", "O"];
+  const cardW = 260;
+  const cardH = 78;
+  const cardGap = 14;
+  let cy = by + boardH + 18;
+  const keys = ["Y", "U", "I", "O", "P"];
   upgrades.forEach((id, i) => {
-    const rect = { x: w - 168, y: cy, w: 156, h: 48 };
-    classRects.push({ rect, classId: id });
-    ctx.fillStyle = "rgba(20,20,20,0.7)";
+    const rect = { x: bx + boardW - cardW, y: cy, w: cardW, h: cardH };
+    classRects.push({ rect: toCanvasRect(rect, dpr), classId: id });
+    ctx.fillStyle = "rgba(20,20,20,0.78)";
     ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
     ctx.strokeStyle = "#00b2e1";
+    ctx.lineWidth = 3;
     ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
-    ctx.fillStyle = "#fff";
-    ctx.font = "14px sans-serif";
-    ctx.textAlign = "center";
+    ctx.fillStyle = "#7ad7f0";
+    ctx.font = "bold 16px sans-serif";
+    ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    ctx.fillText(`${keys[i]}  ${TANK_DEFS[id].name}`, rect.x + rect.w / 2, rect.y + rect.h / 2);
-    cy += 56;
+    ctx.fillText(keys[i]!, rect.x + 16, rect.y + rect.h / 2);
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 26px sans-serif";
+    ctx.fillText(TANK_DEFS[id].name, rect.x + 48, rect.y + rect.h / 2);
+    cy += cardH + cardGap;
   });
 
-  ctx.fillStyle = "rgba(0,0,0,0.55)";
-  ctx.fillRect(w - 200, 12, 188, 18 + 16 * 10);
+  ctx.fillStyle = "rgba(0,0,0,0.6)";
+  ctx.fillRect(bx, by, boardW, boardH);
   ctx.fillStyle = "#fff";
-  ctx.font = "13px sans-serif";
+  ctx.font = "bold 22px sans-serif";
   ctx.textAlign = "left";
-  ctx.fillText("Leaderboard", w - 188, 26);
+  ctx.textBaseline = "alphabetic";
+  ctx.fillText("Leaderboard", bx + 16, by + 30);
   const ranked = [...world.tanks.values()].filter((t) => t.alive || t.id === player.id);
   ranked.sort((a, b) => b.score - a.score);
   ranked.slice(0, 10).forEach((t, i) => {
     ctx.fillStyle = t.id === player.id ? "#9be7ff" : "#eee";
-    ctx.fillText(`${i + 1}. ${t.name}  ${t.score}`, w - 188, 46 + i * 16);
+    ctx.font = "18px sans-serif";
+    ctx.fillText(`${i + 1}. ${t.name}  ${t.score}`, bx + 16, by + 56 + i * row);
   });
 
-  ctx.fillStyle = "rgba(0,0,0,0.4)";
-  ctx.font = "12px sans-serif";
+  ctx.fillStyle = "rgba(0,0,0,0.5)";
+  ctx.font = "15px sans-serif";
   ctx.textAlign = "left";
   ctx.fillText(
     "WASD move · mouse aim · click/space fire · E autofire · C autospin · 1-8 stats · YUIO class",
-    12,
-    18,
+    16,
+    28,
   );
+  const modes = modeHints(player);
+  if (modes) {
+    ctx.fillStyle = "#7ad7f0";
+    ctx.font = "bold 14px sans-serif";
+    ctx.fillText(modes, 16, 48);
+  }
 
   if (world.death && !player.alive) {
     ctx.fillStyle = "rgba(0,0,0,0.55)";
     ctx.fillRect(0, 0, w, h);
     ctx.fillStyle = "#fff";
-    ctx.font = "28px sans-serif";
+    ctx.font = "36px sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(`You were killed by ${world.death.killerName}`, w / 2, h / 2 - 20);
-    respawnRect = { x: w / 2 - 90, y: h / 2 + 10, w: 180, h: 40 };
-    ctx.fillStyle = "#00b2e1";
-    ctx.fillRect(respawnRect.x, respawnRect.y, respawnRect.w, respawnRect.h);
-    ctx.fillStyle = "#fff";
+    ctx.fillText(`You were killed by ${world.death.killerName}`, w / 2, h / 2 - 56);
+    ctx.font = "20px sans-serif";
+    ctx.fillStyle = "#d8d8d8";
+    ctx.fillText(
+      `Score ${world.death.score}  ·  Level ${world.death.level}  ·  ${world.death.className}  ·  ${world.death.kills} kill${world.death.kills === 1 ? "" : "s"}`,
+      w / 2,
+      h / 2 - 18,
+    );
+    ctx.fillStyle = "#9be7ff";
     ctx.font = "16px sans-serif";
-    ctx.fillText("Respawn", w / 2, h / 2 + 32);
+    ctx.fillText(`Killer: ${world.death.killerClass}`, w / 2, h / 2 + 8);
+    const rr = { x: w / 2 - 110, y: h / 2 + 32, w: 220, h: 52 };
+    respawnRect = toCanvasRect(rr, dpr);
+    ctx.fillStyle = "#00b2e1";
+    ctx.fillRect(rr.x, rr.y, rr.w, rr.h);
+    ctx.fillStyle = "#fff";
+    ctx.font = "22px sans-serif";
+    ctx.fillText("Respawn", w / 2, h / 2 + 60);
   }
+
+  ctx.restore();
 }
 
 export function hitHud(mx: number, my: number): HudHit {

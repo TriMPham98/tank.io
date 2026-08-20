@@ -53,10 +53,30 @@ export function derivedRegen(stats: Stats): number {
   return REGEN0 * (1 + 1.4 * stats[0]);
 }
 
+export function pushFloat(
+  world: World,
+  x: number,
+  y: number,
+  text: string,
+  color = "#fff4a8",
+): void {
+  world.floats.push({ x, y, vy: -38, text, born: world.time, life: 0.85, color });
+  if (world.floats.length > 48) world.floats.splice(0, world.floats.length - 48);
+}
+
+export function stepFloats(world: World, dt: number): void {
+  for (let i = world.floats.length - 1; i >= 0; i--) {
+    const f = world.floats[i]!;
+    f.y += f.vy * dt;
+    if (world.time - f.born > f.life) world.floats.splice(i, 1);
+  }
+}
+
 export function addScore(world: World, tank: Tank, amount: number): void {
   if (!tank.alive || amount <= 0) return;
   const prev = tank.level;
   tank.score += amount;
+  pushFloat(world, tank.x, tank.y - tank.radius - 8, `+${Math.round(amount)}`);
   const next = levelFromScore(tank.score);
   if (next > prev) {
     for (let l = prev + 1; l <= next; l++) {
@@ -67,6 +87,7 @@ export function addScore(world: World, tank: Tank, amount: number): void {
     const ratio = tank.hp / tank.maxHp;
     tank.maxHp = derivedMaxHp(tank.level, tank.stats);
     tank.hp = Math.min(tank.maxHp, Math.max(1, ratio * tank.maxHp));
+    pushFloat(world, tank.x, tank.y - tank.radius - 28, `Level ${tank.level}`, "#7ad7f0");
   }
 }
 
@@ -90,7 +111,9 @@ export function pickClass(tank: Tank, classId: TankClassId): boolean {
   if (!current.upgradesTo.includes(classId)) return false;
   if (tank.level < next.unlockLevel) return false;
   tank.classId = classId;
-  tank.barrelT = next.barrels.map((b) => b.delay);
+  tank.barrelT = next.barrels.map((b) => b.delay * derivedReload(tank.stats, b.reload));
+  tank.barrelKick = next.barrels.map(() => 0);
+  tank.barrelAim = next.barrels.map((b) => tank.angle + b.offsetAngle);
   return true;
 }
 
