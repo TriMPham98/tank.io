@@ -129,7 +129,6 @@ function drawBullet(ctx: CanvasRenderingContext2D, b: Bullet, alpha: number): vo
   const y = lerp(b.py, b.y, alpha);
   const spd = Math.hypot(b.vx, b.vy);
   const ang = spd > 1 ? Math.atan2(b.vy, b.vx) : 0;
-  const stretch = b.radius + Math.min(22, spd * 0.035);
   const trail = bulletTrailLength(spd, b.radius);
   const fill = b.fromBot ? COLORS.bulletBot : COLORS.bulletPlayer;
   ctx.save();
@@ -161,7 +160,7 @@ function drawBullet(ctx: CanvasRenderingContext2D, b: Bullet, alpha: number): vo
     ctx.globalAlpha = 1;
   }
   ctx.beginPath();
-  ctx.ellipse(-stretch * 0.15, 0, stretch, b.radius * 0.85, 0, 0, Math.PI * 2);
+  ctx.arc(0, 0, b.radius, 0, Math.PI * 2);
   ctx.fillStyle = fill;
   ctx.strokeStyle = "rgba(0,0,0,0.28)";
   ctx.lineWidth = 2;
